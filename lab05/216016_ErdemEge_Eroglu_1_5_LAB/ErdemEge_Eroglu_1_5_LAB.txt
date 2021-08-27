@@ -1,0 +1,554 @@
+//Computer Science
+//Computer Organization - CS 224
+//Design Report
+//Lab - 5
+//Section – 1
+//Erdem Ege Eroğlu
+//21601636
+//21 DEC 2020
+
+module testbench;
+    logic clk, reset;    
+  logic [31:0] writedata, dataadr, instr, pc,result;
+    logic memwrite;
+    
+  top dut (clk, reset, writedata, dataadr, memwrite, instr, pc, result);
+    initial
+        begin
+            reset <= 1; #4; reset <= 0; #4;
+        end
+     always
+        begin
+            clk <= 1; #1; clk <= 0; #1;
+        end
+  always_ff @(posedge clk)
+    begin
+      $monitor("writedata=%0h, dataadr=%0h,memwrite=%0h", writedata, dataadr, memwrite);
+      $monitor("pc=%0h, instr=%0h, result=%0h", pc, instr,result);
+    end
+endmodule
+
+// Code your design here
+// Code your design here
+
+
+module top  (input   logic 	 clk, reset,            
+	     output  logic[31:0] writedata, dataadr,            
+	     output  logic       memwrite,
+             output  logic [31:0] instr, pc,result);  
+
+   logic [31:0] readdata;    
+
+  mips mips (clk, reset, pc, instr, memwrite, dataadr, writedata, readdata,result);    
+  
+   imem imem (pc[7:2], instr);  
+   dmem dmem (clk, memwrite, dataadr, writedata, readdata);
+
+endmodule
+
+// Define pipes that exist in the PipelinedDatapath. 
+// The pipe between Writeback (W) and Fetch (F), as well as Fetch (F) and Decode (D) is given to you.
+// Create the rest of the pipes where inputs follow the naming conventions in the book.
+
+
+module PipeFtoD(input logic[31:0] instr, PCPlus4F,
+                input logic EN, clk,		// StallD will be connected as this EN
+                output logic[31:0] InstrD, PCPlus4D);
+
+                always_ff @(posedge clk)
+                    if(EN)
+                        begin
+                        InstrD<=instr;
+                        PCPlus4D<=PCPlus4F;
+                        end
+                
+endmodule
+
+// Similarly, the pipe between Writeback (W) and Fetch (F) is given as follows.
+
+module PipeWtoF(input logic[31:0] PC,
+                input logic EN, clk, reset,		// StallF will be connected as this EN
+                output logic[31:0] PCF);
+
+                always_ff @(posedge clk)
+		if(reset)
+		begin
+			PCF <=0;
+		end  
+		else if(EN)
+		begin
+			PCF<=PC;
+		end
+                
+endmodule
+
+// *******************************************************************************
+// Below, write the modules for the pipes PipeDtoE, PipeEtoM, PipeMtoW yourselves.
+// Don't forget to connect Control signals in these pipes as well.
+// *******************************************************************************
+
+
+module PipeDtoE(input logic clk, CLR, RegWriteD, MemtoRegD, MemWriteD,
+                input logic [2:0] ALUControlD,
+               input logic ALUSrcD, RegDstD, BranchD,
+                input logic [31:0] RD1D,RD2D,
+                input logic [4:0] RsD, RtD,RdD,
+                input logic [31:0] SignImmD, PCPlus4D,
+                
+               output logic RegWriteE, MemtoRegE, MemWriteE,
+                output logic [2:0] ALUControlE,
+               output logic ALUSrcE, RegDstE, BranchE,
+                output logic [31:0] RD1E,RD2E,
+                output logic [4:0] RsE, RtE,RdE,
+                output logic [31:0] SignImmE, PCPlus4E );
+  
+  always_ff @(posedge clk)begin
+    if(CLR)begin 
+      RegWriteE <= 0; 
+      MemtoRegE <= 0;
+      MemWriteE <= 0;
+      ALUControlE <= 0;
+      ALUSrcE <= 0;
+      RegDstE <= 0;
+      BranchE <= 0;
+    end
+    else begin 
+   	  RegWriteE <= RegWriteD; 
+      MemtoRegE <= MemtoRegD;
+      MemWriteE <= MemWriteD;
+      ALUControlE <= ALUControlD;
+      ALUSrcE <= ALUSrcD;
+      RegDstE <= RegDstD;
+      BranchE <= BranchD;
+      RD1E <= RD1D;
+      RD2E <= RD2D;
+      RsE <= RsD;
+      RtE <= RtD;
+      RdE <= RdD;
+      SignImmE <= SignImmD;
+      PCPlus4E <= PCPlus4D;
+    end
+  end
+endmodule
+
+module PipeEtoM(input logic clk, RegWriteE, MemtoRegE, MemWriteE, BranchE, Zero, 
+                input logic [31:0] ALUOutE, WriteDataE,
+                input logic [4:0] WriteRegE,
+                input logic [31:0] PCBranchE,
+               output logic RegWriteM, MemtoRegM, MemWriteM, BranchM, ZeroM, 
+                output logic [31:0] ALUOutM, WriteDataM,
+                output logic [4:0] WriteRegM,
+                output logic [31:0] PCBranchM,
+               );
+  always_ff @(posedge clk)begin 
+    RegWriteM <= RegWriteE;
+    MemtoRegM <= MemtoRegE;
+    MemWriteM <= MemWriteE;
+    BranchM <= BranchE;
+    ZeroM <= Zero;
+    ALUOutM <= ALUOutE;
+    WriteDataM <= WriteDataE;
+    WriteRegM <= WriteRegE;
+    PCBranchM <= PCBranchE;
+  end
+endmodule
+
+module PipeMtoW(input logic clk, RegWriteM, MemtoRegM,
+                input logic[31:0] ReadDataM, ALUOutM,
+                input logic [4:0] WriteRegM,
+               output logic RegWriteW, MemtoRegW,
+                output logic [31:0] ReadDataW, ALUOutW,
+                output logic [4:0] WriteRegW);
+  always_ff @(posedge clk)begin 
+    RegWriteW <= RegWriteW;
+    MemtoRegW <= MemtoRegW;
+    ReadDataW <= ReadDataW;
+    ALUOutW <= ALUOutW;
+    WriteRegW <= WriteRegW;
+  end
+
+endmodule
+
+
+
+// *******************************************************************************
+// End of the individual pipe definitions.
+// ******************************************************************************
+
+// *******************************************************************************
+// Below is the definition of the datapath.
+// The signature of the module is given. The datapath will include (not limited to) the following items:
+//  (1) Adder that adds 4 to PC
+//  (2) Shifter that shifts SignImmE to left by 2
+//  (3) Sign extender and Register file
+//  (4) PipeFtoD
+//  (5) PipeDtoE and ALU
+//  (5) Adder for PCBranchM
+//  (6) PipeEtoM and Data Memory
+//  (7) PipeMtoW
+//  (8) Many muxes
+//  (9) Hazard unit
+//  ...?
+// Once again, you don't have to stick to the design below
+// *******************************************************************************
+
+module datapath (input  logic clk, reset, RegWriteD, MemtoRegD, MemWriteD,
+		         input  logic[2:0]  ALUControlD,
+		         input logic ALUSrcD, RegDstD, BranchD,
+                 input logic[31:0] Instr,
+                 input logic[31:0] ReadDataM,
+                 output logic MemWriteM,
+                 output logic [31:0] ALUOutM, WriteDataM,PCOut,result); 
+
+	// ********************************************************************
+	// Here, define the wires that are needed inside this pipelined datapath module
+  logic EN, CLR;
+  logic StallF, StallD, FlushE;
+  logic [1:0] ForwardAE, ForwardBE;
+  
+  logic [31:0] PC, PCF, PCPlus4F,instr;
+  
+  
+  logic RegWriteW, Zero;
+  logic[4:0] WriteRegW, RsD,RtD,RdD, RsE, RtE,RdE;
+  logic [31:0] ResultW,RD1D,RD2D,SignImmD,InstrD, RD1E,PCPlus4D;
+  logic [31:0] RD2E,SrcAE,emptyMux,WriteDataE;
+  logic [31:0] SignImmE, PCPlus4E,SrcBE,ALUOutE;
+  logic RegWriteE, MemtoRegE, MemWriteE, ALUSrcE, RegDstE, BranchE,PCSrcM;
+  logic[2:0] ALUControlE;
+  logic[31:0]tempSignImmE,PCBranchE;
+  logic RegWriteM, MemtoRegM, BranchM, ZeroM,MemtoRegW;
+  logic[31:0] PCBranchM,ReadDataW,ALUOutW;
+  logic[4:0]WriteRegE,WriteRegM;
+  
+	// ********************************************************************
+
+	
+	// ********************************************************************
+	// Instantiate the required modules below in the order of the datapath flow.
+  mux2 #(32) firstMux(PCPlus4F,PCBranchM,PCSrcM,PC);
+  
+  assign EN = ~StallF;
+  
+  PipeWtoF w2f(PC,EN,clk,reset,PCF);
+  
+  adder pcAdd1(PCF,32'b100,PCPlus4F);
+  
+  PipeFtoD f2d(instr, PCPlus4F, EN, clk, InstrD,PCPlus4D);
+  
+  assign RsD = InstrD[25:21];
+  assign RtD = InstrD[20:16];
+  assign RdD = InstrD[15:11];
+   
+  regfile registerFile(clk, RegWriteW, InstrD[25:21], InstrD[20:16], WriteRegW, ResultW, RD1D, RD2D);
+  
+  signext sign(InstrD[15:0],SignImmD);
+  
+  assign CLR = FlushE;
+  
+  PipeDtoE d2e(clk,CLR, RegWriteD, MemtoRegD, MemWriteD, ALUControlD, ALUSrcD, RegDstD, BranchD,RD1D,RD2D, RsD, RtD,RdD, SignImmD, PCPlus4D,RegWriteE, MemtoRegE, MemWriteE,ALUControlE, ALUSrcE, RegDstE, BranchE, RD1E,RD2E,RsE, RtE,RdE, SignImmE, PCPlus4E);  
+  
+  mux2 #(5)	muxR(RtE,RdE,RegDstE,WriteRegE);
+  mux4   muxForRD1(RD1E,ResultW,ALUOutM,emptyMux,ForwardAE,SrcAE); // emptyMux never going to be selected
+  mux4   muxForRD2(RD2E,ResultW,ALUOutM,emptyMux,ForwardBE,WriteDataE); // emptyMux never going to be selected
+  
+  mux2#(32) muxForSrcBE(WriteDataE,SignImmE,ALUSrcE,SrcBE);
+  
+  alu a(SrcAE,SrcBE,ALUControlE,ALUOutE,Zero);
+  
+  sl2 signSll(SignImmE,tempSignImmE);
+  
+  adder lastAdder(tempSignImmE,PCPlus4E,PCBranchE);
+
+  PipeEtoM e2m(clk, RegWriteE, MemtoRegE, MemWriteE, BranchE, Zero,ALUOutE, WriteDataE,WriteRegE,PCBranchE,RegWriteM, MemtoRegM, MemWriteM, BranchM, ZeroM, ALUOutM, WriteDataM, WriteRegM, PCBranchM);
+  
+  assign PCSrcM = BranchM & ZeroM;
+  
+  PipeMtoW m2w(clk,RegWriteM,MemtoRegM,ReadDataM,ALUOutM,WriteRegM,RegWriteW,MemtoRegW, ReadDataW,ALUOutW,WriteRegW);
+  
+  mux2 #(32) lastMux(ReadDataW, ALUOutW,MemtoRegW,ResultW);
+  
+  HazardUnit hazard(RsE,RtE,RsD,RtD,MemtoRegE, RegWriteM, RegWriteW,WriteRegM, WriteRegW,ForwardAE,ForwardBE,FlushE,StallD,StallF);
+  
+  assign PCOut = PCF;
+
+  assign result = ResultW;
+		// ********************************************************************
+	
+endmodule
+
+
+
+// Hazard Unit with inputs and outputs named
+// according to the convention that is followed on the book.
+
+module HazardUnit( input logic [4:0] rsE,rtE,
+                input logic [4:0] rsD,rtD,
+                   input logic MemtoRegE, RegWriteM, RegWriteW,
+                  input logic [4:0] WriteRegM, WriteRegW,
+                  output logic [1:0] ForwardAE,ForwardBE,
+                output logic FlushE,StallD,StallF);
+    logic lwstall;
+    always_comb begin
+    
+	// ********************************************************************
+	// Here, write equations for the Hazard Logic.
+	// If you have troubles, please study pages ~420-430 in your book.
+	// ********************************************************************
+      
+      if ((rsE != 0) & (rsE == WriteRegM) & RegWriteM)
+	    ForwardAE = 2'b10;
+	  else if ((rsE != 0) & (rsE == WriteRegW) & RegWriteW)
+		ForwardAE = 2'b01;
+	  else
+		ForwardAE = 2'b00;
+      
+      if ((rtE != 0) & (rtE == WriteRegM) & RegWriteM)
+	    ForwardBE = 2'b10;
+      else if ((rtE != 0) & (rtE == WriteRegW) & RegWriteW)
+		ForwardBE = 2'b01;
+	  else
+		ForwardBE = 2'b00;
+      
+      lwstall <= ((rsD == rtE) | (rtD == rtE)) & MemtoRegE;
+	  StallF <= lwstall; 
+      StallD <= lwstall;
+      FlushE <= lwstall;
+      
+    end
+endmodule
+
+
+module mips (input  logic        clk, reset,
+             output logic[31:0]  pc,
+             input  logic[31:0]  instr,				// Add or remove input-outputs if necessary
+             output logic        memwriteOut,
+             output logic[31:0]  aluout, 
+             output logic[31:0]  writedata,
+             input  logic[31:0]  readdata,result);
+
+  logic        memtoreg, pcsrc, zero, alusrc, regdst, regwrite, memwrite,branch ,jump ;
+  logic [2:0]  alucontrol;
+
+	// ********************************************************************
+	// Below, instantiate a controller and a datapath with their new (if modified) signatures
+	// and corresponding connections.
+  controller c (instr[31:26], instr[5:0], memtoreg, memwrite, alusrc, regdst, regwrite, jump, alucontrol,branch);  
+  
+  datapath dp (clk, reset,regwrite, memtoreg,memwrite,alucontrol, alusrc, regdst, branch,instr, readdata,memwriteOut,aluout,writedata, pc,result);
+	// ********************************************************************
+
+
+endmodule
+
+
+// External instruction memory used by MIPS single-cycle
+// processor. It models instruction memory as a stored-program 
+// ROM, with address as input, and instruction as output
+// Modify it to test your own programs.
+
+module imem ( input logic [5:0] addr, output logic [31:0] instr);
+
+// imem is modeled as a lookup table, a stored-program byte-addressable ROM
+	always_comb
+	   case ({addr,2'b00})		   	// word-aligned fetch
+//
+// 	***************************************************************************
+//	Here, you can paste your own test cases that you prepared for the part 1-e.
+//	Below is a placeholder program from the single-cycle lab.
+//	***************************************************************************
+//
+//		address		instruction
+//		-------		-----------
+         //NO HAZARD
+        8'h04: instr = 32'h20100003;
+		8'h08: instr = 32'h20110007;
+		8'h0c: instr = 32'h20120000;
+		8'h10: instr = 32'h20130005;
+		8'h14: instr = 32'h20140009;
+		8'h18: instr = 32'h02309020;
+		8'h1c: instr = 32'h02309024;
+		8'h20: instr = 32'h02309025;
+		8'h24: instr = 32'h0230902a;
+		8'h28: instr = 32'hae110004;
+		8'h2c: instr = 32'h8e300000;
+         // Compute-use Hazard
+        8'h30: instr = 32'h20100003;
+		8'h34: instr = 32'h20110007;
+		8'h38: instr = 32'h02119020;
+         // Load-use Hazard
+        8'h3c: instr = 32'h20100003;
+		8'h40: instr = 32'h20110007;
+		8'h44: instr = 32'hae300000;
+		8'h48: instr = 32'h8e110001;
+		8'h4c: instr = 32'h02309020;
+         // Load-store Hazard
+        8'h50: instr = 32'h20100003;
+		8'h54: instr = 32'h20110007;
+		8'h58: instr = 32'hae300000;
+		8'h5c: instr = 32'h8e310000;
+	     default:  instr = {32{1'bx}};	// unknown address
+	   endcase
+endmodule
+
+
+// 	***************************************************************************
+//	Below are the modules that you shouldn't need to modify at all..
+//	***************************************************************************
+
+module controller(input  logic[5:0] op, funct,
+                  output logic     memtoreg, memwrite,
+                  output logic     alusrc,
+                  output logic     regdst, regwrite,
+                  output logic     jump,
+                  output logic[2:0] alucontrol,
+                  output logic branch);
+
+   logic [1:0] aluop;
+
+   maindec md (op, memtoreg, memwrite, branch, alusrc, regdst, regwrite, 
+         jump, aluop);
+
+   aludec  ad (funct, aluop, alucontrol);
+
+endmodule
+
+// External data memory used by MIPS single-cycle processor
+
+module dmem (input  logic        clk, we,
+             input  logic[31:0]  a, wd,
+             output logic[31:0]  rd);
+
+   logic  [31:0] RAM[63:0];
+  
+   assign rd = RAM[a[31:2]];    // word-aligned  read (for lw)
+
+   always_ff @(posedge clk)
+     if (we)
+       RAM[a[31:2]] <= wd;      // word-aligned write (for sw)
+
+endmodule
+
+module maindec (input logic[5:0] op, 
+	              output logic memtoreg, memwrite, branch,
+	              output logic alusrc, regdst, regwrite, jump,
+	              output logic[1:0] aluop );
+   logic [8:0] controls;
+
+   assign {regwrite, regdst, alusrc, branch, memwrite,
+                memtoreg,  aluop, jump} = controls;
+
+  always_comb
+    case(op)
+      6'b000000: controls <= 9'b110000100; // R-type
+      6'b100011: controls <= 9'b101001000; // LW
+      6'b101011: controls <= 9'b001010000; // SW
+      6'b000100: controls <= 9'b000100010; // BEQ
+      6'b001000: controls <= 9'b101000000; // ADDI
+      6'b000010: controls <= 9'b000000001; // J
+      default:   controls <= 9'bxxxxxxxxx; // illegal op
+    endcase
+endmodule
+
+module aludec (input    logic[5:0] funct,
+               input    logic[1:0] aluop,
+               output   logic[2:0] alucontrol);
+  always_comb
+    case(aluop)
+      2'b00: alucontrol  = 3'b010;  // add  (for lw/sw/addi)
+      2'b01: alucontrol  = 3'b110;  // sub   (for beq)
+      default: case(funct)          // R-TYPE instructions
+          6'b100000: alucontrol  = 3'b010; // ADD
+          6'b100010: alucontrol  = 3'b110; // SUB
+          6'b100100: alucontrol  = 3'b000; // AND
+          6'b100101: alucontrol  = 3'b001; // OR
+          6'b101010: alucontrol  = 3'b111; // SLT
+          default:   alucontrol  = 3'bxxx; // ???
+        endcase
+    endcase
+endmodule
+
+module regfile (input    logic clk, we3, 
+                input    logic[4:0]  ra1, ra2, wa3, 
+                input    logic[31:0] wd3, 
+                output   logic[31:0] rd1, rd2);
+
+  logic [31:0] rf [31:0];
+
+  // three ported register file: read two ports combinationally
+  // write third port on rising edge of clock. Register0 hardwired to 0.
+
+  always_ff @(negedge clk)
+     if (we3) 
+         rf [wa3] <= wd3;	
+
+  assign rd1 = (ra1 != 0) ? rf [ra1] : 0;
+  assign rd2 = (ra2 != 0) ? rf[ ra2] : 0;
+
+endmodule
+
+module alu(input  logic [31:0] a, b, 
+           input  logic [2:0]  alucont, 
+           output logic [31:0] result,
+           output logic zero);
+    
+    always_comb
+        case(alucont)
+            3'b010: result = a + b;
+            3'b110: result = a - b;
+            3'b000: result = a & b;
+            3'b001: result = a | b;
+            3'b111: result = (a < b) ? 1 : 0;
+            default: result = {32{1'bx}};
+        endcase
+    
+    assign zero = (result == 0) ? 1'b1 : 1'b0;
+    
+endmodule
+
+module adder (input  logic[31:0] a, b,
+              output logic[31:0] y);
+     
+     assign y = a + b;
+endmodule
+
+module sl2 (input  logic[31:0] a,
+            output logic[31:0] y);
+     
+     assign y = {a[29:0], 2'b00}; // shifts left by 2
+endmodule
+
+module signext (input  logic[15:0] a,
+                output logic[31:0] y);
+              
+  assign y = {{16{a[15]}}, a};    // sign-extends 16-bit a
+endmodule
+
+// parameterized register
+module flopr #(parameter WIDTH = 8)
+              (input logic clk, reset, 
+	       input logic[WIDTH-1:0] d, 
+               output logic[WIDTH-1:0] q);
+
+  always_ff@(posedge clk, posedge reset)
+    if (reset) q <= 0; 
+    else       q <= d;
+endmodule
+
+
+// paramaterized 2-to-1 MUX
+module mux2 #(parameter WIDTH = 8)
+             (input  logic[WIDTH-1:0] d0, d1,  
+              input  logic s, 
+              output logic[WIDTH-1:0] y);
+  
+   assign y = s ? d1 : d0; 
+endmodule
+
+module mux4 (input  logic[31:0] d0, d1, d2, d3, 
+   input  logic [1:0]s, 
+   output logic[31:0] y);
+  
+  assign y =s[1] ? (s[0] ? d3:d2):(s[0] ? d1:d0);
+  
+endmodule

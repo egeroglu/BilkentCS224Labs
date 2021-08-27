@@ -1,0 +1,226 @@
+CS224
+02
+01
+Erdem Ege Eroglu
+21601636
+### My program asks n number to user but this feature is not workig
+### This program's n number of rigthmost bits is always 4
+###############################################################PART A
+.data
+	wlcm:	.asciiz	"Enter a number value (0 to stop!)"
+	rigth:	.asciiz	"Enter an n value of rigthmost bits:"
+	newL:	.asciiz	"\n"
+	hey:	.word 16
+	in:	.asciiz "input was "
+	out:	.asciiz	"output is "
+.text
+	loop:
+		la 	$a0, wlcm
+		li	$v0, 4	
+		syscall
+		li	$v0, 5
+		syscall
+		move	$a1, $v0
+		beq 	$a1, $zero, done # exit or not
+		###
+		la	$a0, rigth
+		li	$v0, 4
+		syscall
+		li 	$v0, 5
+		syscall
+		move	$s7, $v0 #desire number of rigthhmost bits
+		
+
+		lw	$s0, hey
+		##############
+			
+		div  	$a1, $s0
+		mfhi	$s1	#remainder
+		sub 	$s2, $a1, $s1
+		sub	$s3, $s0, $s1
+		add	$s4, $s2, $s3
+		subi	$s4, $s4, 1
+		
+		la 	$a0, out
+		li	$v0, 4	
+		syscall
+		move 	$a0, $s4
+		li	$v0, 34
+		syscall
+		
+		##############
+		la 	$a0, newL
+		li	$v0, 4	
+		syscall
+		la 	$a0, in
+		li	$v0, 4	
+		syscall
+		move 	$a0,$a1
+		li	$v0, 34
+		syscall
+		la 	$a0, newL
+		li	$v0, 4	
+		syscall
+		
+		j loop
+	
+	done:		
+		li	$v0, 10
+		syscall
+###############################################PART B
+.text
+	
+main:
+	jal checkdPalidrome
+	li	$v0, 10
+    	syscall
+checkdPalidrome:	
+	la 	$a0, size #ask for array size
+	li $v0, 4
+	syscall
+	
+	li	$v0, 5
+	syscall
+	move 	$s2, $v0
+ 	li $s0, 0
+# initialize array with user's inputs
+loop:
+  	li	$v0, 5
+  	syscall
+  	move	$s3,$v0
+  	sw 	$s3, array($s1)  
+  	addi 	$s0, $s0, 1
+  	
+  	addi 	$s1, $s1, 4
+  	bne 	$s0, $s2, loop
+
+	
+# check  
+  	li 	$s0, 0
+  	sll	$s1, $s2, 2  #multiply by 4 = 2^2
+  	addi 	$s1, $s1, -4
+test:
+    	lw	$s5, array($s0)
+    	lw	$s6, array($s1)
+   	bne	$s5, $s6, notPal
+    	addi	$s0, $s0, 4
+    	addi 	$s1, $s1, -4
+    	blt 	$s0, $s1, test
+  	la 	$a0, pal
+  	j 	done 
+
+notPal:
+    	la	$a0, palN
+    	j 	done
+
+# print msg then terminate
+done:
+    	li	$v0, 4
+    	syscall
+    	jr	$ra
+    	
+	.data
+array:	.space 80 # max 20 inputs
+pal: 	.asciiz "\n Palindrome"
+palN:	.asciiz "\n Not a palindrome"
+size:	.asciiz "Enter the aray size: "
+############################################### PART C
+.data
+	wlcm: .asciiz "Enter array size: "
+	takeValue: .asciiz "Enter value to delete: "
+.text
+    	jal createPopularArray
+    	move $t0, $v0
+    	move $t1, $v1
+
+    	move $a0, $t0
+    	move $a1, $t1
+    	jal compressArray
+
+    	li $v0,10  # system call to exit
+    	syscall    #    bye bye
+createPopularArray:
+    	la $a0,wlcm    # put string address into a0
+    	li $v0,4    # system call to print
+    	syscall        #   out a string
+
+    	la $v0,5
+    	syscall
+    	move $s0, $v0
+
+    	mul $s2, $s0, 2
+    	move $a0, $s2
+    	li $v0, 9
+    	syscall
+
+    	move $s4, $v0
+
+    	li $s1, 0
+loop:   
+	beq $s1, $s0, go
+
+    	la $v0,5
+    	syscall
+    	move $s3, $v0
+
+   	sw $s3, 0($s4)
+   	addi $s4, $s4, 4
+    	addi $s1, $s1, 1
+    	j loop
+
+go:    
+	sub $s2, $s2, 4 #x2 for dynamic array
+  	sub $s4, $s4, $s2
+	move $v0, $s4
+    	move $v1, $s0
+    	jr $ra
+
+compressArray:
+    	move $s0, $a0
+    	move $s1, $a1
+    	li   $s2, 0
+
+    	la $a0,takeValue    # put string address into a0
+    	li $v0,4    # system call to print
+    	syscall        #   out a string
+    	la $v0,5
+    	syscall
+    	move $s4, $v0
+
+    	mul $s5, $s1, 2
+    	move $a0, $s5
+    	li $v0, 9
+    	syscall
+    	move $s5, $v0
+
+compLoop:
+    	bge $s2, $s1, compEnd
+    	lw  $s3, 0($s0)
+    	beq $s4, $s3, compEnd
+    	addi $s0, $s0, 4
+    	addi $s2, $s2, 1
+    	j compLoop
+compEnd:
+	li	$v0,10
+	syscall
+############################################### PART D
+.data
+	wlcm:	.asciiz "Enter 1 to delete all umber within the range of 1 to 4 (0 to EXIT)"
+	
+	
+.text
+loop:
+	la	$a0, wlcm
+	li	$v0, 4
+	syscall
+	
+	li	$v0, 5
+	syscall
+	move	$s0, $v0
+	
+	beq 	$s0, $zero, end
+	j loop
+	
+end:	
+	li	$v0, 10
+	syscall

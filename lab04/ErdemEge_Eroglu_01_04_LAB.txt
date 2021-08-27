@@ -1,0 +1,227 @@
+CS224
+Lab 04
+Section 1
+Erdem Ege Eroğlu
+21601636
+
+// part2 e) - f) final testbench
+// 
+module testbench;
+    logic clk, reset;    
+  logic [31:0] writedata, dataadr, instr, pc;
+    logic memwrite;
+    
+  topLevel dut (clk, reset, writedata, dataadr, memwrite, instr, pc);
+    initial
+        begin
+            reset <= 1; #4; reset <= 0; #4;
+        end
+     always
+        begin
+            clk <= 1; #1; clk <= 0; #1;
+        end
+  always_ff @(posedge clk)
+    begin
+      $monitor("writedata=%0h, dataadr=%0h,memwrite=%0h", writedata, dataadr, memwrite);
+      $monitor("pc=%0h, instr=%0h", pc, instr);
+    end
+endmodule
+
+// new top level module
+module topLevel  (input   logic 	 clk, reset,            
+	     output  logic[31:0] writedata, dataadr,            
+             output  logic       memwrite,  
+                  output  logic [31:0] instr, pc);
+
+   logic [31:0] readdata;    
+
+   // instantiate processor and memories  
+   mips mips (clk, reset, pc, instr, memwrite, dataadr, writedata, readdata);  
+   imem imem (pc[7:2], instr);  
+   dmem dmem (clk, memwrite, dataadr, writedata, readdata);
+
+endmodule
+
+// new imem module it works exatcly same way wit the older version
+// but new instructions are used
+module imem ( input logic [5:0] addr, output logic [31:0] instr);
+// imem is modeled as a lookup table, a stored-program byte-addressable ROM
+	always_comb
+	   case ({addr,2'b00})		   	// word-aligned fetch
+//		address		instruction
+//		-------		-----------
+        8'h00: instr = 32'h20020005;  	// disassemble, by hand 
+		8'h04: instr = 32'h2003000c;  	// or with a program,
+		8'h08: instr = 32'h2067fff7;  	// to find out what
+		8'h0c: instr = 32'h00e22025;  	// this program does!
+		8'h10: instr = 32'h00642824;
+		8'h14: instr = 32'h00a42820;
+		8'h18: instr = 32'h10a7000a;
+		8'h1c: instr = 32'h0064202a;
+		8'h20: instr = 32'h10800001;
+		8'h24: instr = 32'h20050000;
+		8'h28: instr = 32'h00e2202a;
+		8'h2c: instr = 32'h00853820;
+		8'h30: instr = 32'h00e23822;
+		8'h34: instr = 32'hac670044;
+		8'h38: instr = 32'h8c020050;
+		8'h3c: instr = 32'h08000011;
+		8'h40: instr = 32'h20020001;
+		8'h44: instr = 32'hac020054;
+    	////////////////////////////////////////     
+        	8'h48: instr = 32'h40670009; // (subi $a3, $v1, 9)
+		8'h4c: instr = 32'h54440000; // (ble $a0, $v0, 1)
+	////////////////////////////////////////////
+		8'h50: instr = 32'h08000012;	// j 48, so it will loop here
+	     default:  instr = {32{1'bx}};	// unknown address
+	   endcase
+endmodule
+
+
+// new signal saveBeq is added for ble instruction
+
+module mips (input  logic        clk, reset,
+             output logic[31:0]  pc,
+             input  logic[31:0]  instr,
+             output logic        memwrite,
+             output logic[31:0]  aluout, writedata,
+             input  logic[31:0]  readdata);
+
+  logic        memtoreg, pcsrc, zero, alusrc, regdst, regwrite, jump, saveBeq;
+  logic [2:0]  alucontrol;
+
+  controller c (instr[31:26], instr[5:0], zero, memtoreg, memwrite, pcsrc,
+                        alusrc, regdst, regwrite, jump, saveBeq, alucontrol);
+
+  datapath dp (clk, reset, memtoreg, pcsrc, alusrc, regdst, regwrite, jump, saveBeq,
+                          alucontrol, zero, pc, instr, aluout, writedata, readdata);
+
+endmodule
+
+
+
+
+
+// new controller with new signal "saveBeq"
+module controller(input  logic[5:0] op, funct,
+                  input  logic     zero,
+                  output logic     memtoreg, memwrite,
+                  output logic     pcsrc, alusrc,
+                  output logic     regdst, regwrite,
+                  output logic     jump, saveBeq,
+                  output logic[2:0] alucontrol);
+
+   logic [1:0] aluop;
+   logic       branch;
+
+  maindec md (op, funct, memtoreg, memwrite, branch, alusrc, regdst, regwrite, 
+		 jump, saveBeq, aluop);
+
+   aludec  ad (funct, aluop, alucontrol);
+
+   assign pcsrc = branch & zero;
+
+endmodule
+
+// ble and subi instructions are added
+module maindec (input logic[5:0] op, 
+                input logic[5:0] funct,
+	              output logic memtoreg, memwrite, branch,
+	              output logic alusrc, regdst, regwrite, jump, saveBeq,
+	              output logic[1:0] aluop );
+  logic [9:0] controls;
+
+   assign {regwrite, regdst, alusrc, branch, memwrite,
+                memtoreg,  aluop, jump, saveBeq} = controls;
+
+  always_comb
+    case(op)
+      6'b000000: controls <= 10'b1100001000; // R-type
+      6'b100011: controls <= 10'b1010010000; // LW
+      6'b101011: controls <= 10'b0010100000; // SW
+      6'b000100: controls <= 10'b0001000101; // BEQ
+      6'b001000: controls <= 10'b1010000000; // ADDI
+      6'b000010: controls <= 10'b0000000010; // J
+      6'b010101: controls <= 10'b0001001100; // Ble (new instruction)
+      6'b010000: controls <= 10'b1010000100; // Subi (new instruction)
+      default:   controls <= 10'bxxxxxxxxxx; // illegal op
+    endcase
+endmodule
+
+// new datapath with ble and subi is implemented 
+module datapath (input  logic clk, reset, memtoreg, pcsrc, alusrc, regdst,
+                 input  logic regwrite, jump, saveBeq,
+		 input  logic[2:0]  alucontrol, 
+                 output logic zero, 
+		 output logic[31:0] pc, 
+	         input  logic[31:0] instr,
+                 output logic[31:0] aluout, writedata, 
+	         input  logic[31:0] readdata);
+
+  logic [4:0]  writereg;
+  logic [31:0] pcnext, pcnextbr, pcplus4, pcbranch;
+  logic [31:0] signimm, signimmsh, srca, srcb, result;
+  logic sltr, orr, bleresult, tempZero; // results of < , od , mux (for ble)
+ 
+  // next PC logic
+  flopr #(32) pcreg(clk, reset, pcnext, pc);
+  adder       pcadd1(pc, 32'b100, pcplus4);
+  sl2         immsh(signimm, signimmsh);
+  adder       pcadd2(pcplus4, signimmsh, pcbranch);
+  mux2 #(32)  pcbrmux(pcplus4, pcbranch, pcsrc,
+                      pcnextbr);
+  mux2 #(32)  pcmux(pcnextbr, {pcplus4[31:28], 
+                    instr[25:0], 2'b00}, jump, pcnext);
+
+// register file logic
+   regfile     rf (clk, regwrite, instr[25:21], instr[20:16], writereg,
+                   result, srca, writedata);
+
+   mux2 #(5)    wrmux (instr[20:16], instr[15:11], regdst, writereg);
+   mux2 #(32)  resmux (aluout, readdata, memtoreg, result);
+   signext         se (instr[15:0], signimm);
+
+  // ALU logic
+   mux2 #(32)  srcbmux (writedata, signimm, alusrc, srcb);
+  alu         alu (srca, srcb, alucontrol, aluout, tempZero);
+  // Ble Logic
+  setLessThen #(32)   setlt(srca,srcb,sltr);
+  orGate              or1(sltr,zero, orr);
+  mux2 #(1)           blemux(orr,tempZero, saveBeq, bleresult);
+  buffer			  buff( bleresult, zero);
+endmodule
+
+// alu module
+module alu(input  logic [31:0] a, b, 
+           input  logic [2:0]  alucont, 
+           output logic [31:0] result,
+           output logic zero);
+
+  always_comb
+    case(alucont)
+      3'b000: result = a & b; // and
+      3'b001: result = a | b; // or
+      3'b010: result = a + b; // add
+      3'b110: result = a - b; // sub
+      3'b111: result = a < b; // slt
+      default: result = {32{1'bx}};
+  endcase
+       assign zero = (result == 0);
+endmodule
+
+module orGate (input logic a, b,
+               output logic y);
+  assign y = a|b;
+endmodule
+
+module setLessThen #(parameter N = 32)
+  (input logic [N-1:0]a,b,
+   output logic lt);
+  assign lt =(a<b);
+endmodule
+
+module buffer (input logic a,
+                output logic y);
+  assign y=a;
+endmodule
+  

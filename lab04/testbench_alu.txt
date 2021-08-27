@@ -1,0 +1,61 @@
+// testBench for alu
+module testBech_alu;
+  logic[31:0] a, b, result;
+  logic[2:0] alucont;
+  logic zero;
+
+  alu dut(.a (a), .b (b), .alucont (alucont), .result(result), .zero (zero));
+  
+  initial begin
+    a = 3; b = 5; alucont = 3'b000; #10 // and
+    if(result == (a&b) && result == 1)begin
+      $display("a & b Test is successful");
+    end
+    a=7; alucont = 3'b001; #10// or
+    if(result == (a|b) && result == 7)begin
+      $display("a | b Test is successful");
+    end
+    alucont = 3'b010;  #10// add
+    if(result == (a+b)&&result ==12)begin
+      $display("a + b Test is successful");
+    end
+    alucont = 3'b110;  #10// sub
+    if(result == (a-b)&& result ==2)begin
+      $display("a - b Test is successful");
+    end
+    alucont = 3'b111;  #10// slt
+    if(result == (a<b) && result==0 )begin
+      $display("a < b Test is successful");
+    end
+    a = 5; alucont = 3'b111; #10 // slt
+    if(result == (a<b) && result==0 )begin
+      $display("a < b Test is successful");
+    end
+    a = 3; alucont = 3'b111; #10 // slt
+    if(result == (a<b) && result==1 )begin
+      $display("a < b Test is successful");
+    end
+  end 
+endmodule
+
+// part2 - e) and f)
+module testbench;
+    logic clk, reset;    
+  logic [31:0] writedata, dataadr, instr, pc;
+    logic memwrite;
+    
+  topLevel dut (clk, reset, writedata, dataadr, memwrite, instr, pc);
+    initial
+        begin
+            reset <= 1; #4; reset <= 0; #4;
+        end
+     always
+        begin
+            clk <= 1; #1; clk <= 0; #1;
+        end
+  always_ff @(posedge clk)
+    begin
+      $monitor("writedata=%0h, dataadr=%0h,memwrite=%0h", writedata, dataadr, memwrite);
+      $monitor("pc=%0h, instr=%0h", pc, instr);
+    end
+endmodule
